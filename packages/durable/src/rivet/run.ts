@@ -142,12 +142,14 @@ export function xstate<
             }),
         });
         void inspector.ready.catch(() => {});
-        viewerLink = inspector.createViewerLink({ maxUses: 100 }).then(
-          ({ openUrl }) => {
-            viewerUrl = openUrl;
-          },
-          () => {},
-        );
+        if (!transport) {
+          viewerLink = inspector.createViewerLink({ maxUses: 100 }).then(
+            ({ openUrl }) => {
+              viewerUrl = openUrl;
+            },
+            () => {},
+          );
+        }
       }
       const resource =
         typeof logic === 'function'

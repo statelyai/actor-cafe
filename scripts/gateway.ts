@@ -51,7 +51,9 @@ function json(response: ServerResponse, status: number, data: unknown) {
 }
 
 const server = createServer(async (req, res) => {
-  const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+  const url = URL.parse(req.url ?? '/', 'http://localhost');
+  if (!url) return json(res, 400, { error: 'Invalid request URL.' });
+  const { pathname } = url;
   const [, api, runtime, runs, id, commands, ...rest] = pathname.split('/');
   if (
     api === 'api' &&

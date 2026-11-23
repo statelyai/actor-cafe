@@ -13,7 +13,7 @@ pnpm install
 pnpm dev
 ```
 
-Open <http://localhost:5173>. Pick a runtime and start a café. The left pane shows orders, actors, grinder reservations, and payment receipts. Select live inspection when starting a run to load the Stately Inspector in the right pane. The hosted Inspector receives synthetic demo state. Anyone with the viewer link can view that run.
+Open <http://localhost:5173>. Pick a runtime and start a café. The left pane shows orders, actors, grinder reservations, and payment status. Select live inspection when starting a run to load the Stately Inspector in the right pane. The hosted Inspector receives synthetic demo state. Anyone with the viewer link can view that run.
 
 The dev launcher starts both local runtimes and stores their data under `.cafe/`. Use `CAFE_RIVET_ONLY=1 pnpm dev` to run without Restate Server. The [Rivet CLI](apps/rivet/README.md) also runs on its own.
 

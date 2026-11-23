@@ -10,6 +10,16 @@ const freeze = (type: string, data: unknown) => {
   process.send?.({ type, data });
   process.kill(process.pid, 'SIGSTOP');
 };
+// Buffered inspection messages must reach the parent before suspending this worker.
+function freezeInspection(type: string, data: unknown): Promise<never> {
+  return new Promise((_, reject) => {
+    if (!process.send) throw new Error('Inspection fixture requires IPC.');
+    process.send({ type, data }, undefined, undefined, (error) => {
+      if (error) reject(error);
+      else process.kill(process.pid, 'SIGSTOP');
+    });
+  });
+}
 const port = Number(portText);
 let virtualNow = Date.now();
 let gated = false;
@@ -41,7 +51,7 @@ const registry = createCafeRegistry({
               ) {
                 captured = true;
                 queueMicrotask(() => {
-                  freeze('inspection.firstPublication', {
+                  void freezeInspection('inspection.firstPublication', {
                     messages: inspectionMessages,
                     view: inspectionView,
                     delivery,
@@ -79,7 +89,7 @@ const registry = createCafeRegistry({
             .safeParse(delivery.event).success))
     ) {
       gated = true;
-      freeze('fault.inspection', {
+      await freezeInspection('fault.inspection', {
         view,
         delivery,
         messages: inspectionMessages,
