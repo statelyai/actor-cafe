@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f0e6" />
+    <title>Actor Café</title>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="/">Actor Café</a>
+      <span class="connection" id="connection" role="status">Connecting</span>
+    </header>
+
+    <main class="workspace">
+      <section class="cafe" aria-labelledby="cafe-title">
+        <div class="cafe-header">
+          <h1 id="cafe-title">Café floor</h1>
+          <span class="status-label" id="run-status">No run</span>
+        </div>
+
+        <form id="run-form" class="setup">
+          <label class="runtime-field" for="runtime">Runtime</label>
+          <select id="runtime" class="runtime-field" name="runtime" required>
+            <option value="rivet">XState + Rivet</option>
+            <option value="restate">Restate</option>
+          </select>
+          <div class="params">
+            <label
+              >Customers<input
+                name="customers"
+                type="number"
+                value="6"
+                min="0"
+                max="100"
+                required
+            /></label>
+            <label
+              >Baristas<input
+                name="baristas"
+                type="number"
+                value="2"
+                min="1"
+                max="20"
+                required
+            /></label>
+            <label
+              >Tick (ms)<input
+                name="tickMs"
+                type="number"
+                value="500"
+                min="20"
+                max="5000"
+                required
+            /></label>
+          </div>
+          <div class="start-row">
+            <label class="opt-in">
+              <input name="inspect" type="checkbox" />
+              <span
+                >Stream to Stately
+                <small
+                  >Anyone with the session link can view its demo data.</small
+                ></span
+              >
+            </label>
+            <button id="start" class="primary" type="submit" disabled>
+              Start café
+            </button>
+          </div>
+        </form>
+
+        <p class="error" id="error" role="alert" hidden></p>
+
+        <section class="floor" id="floor" aria-label="Live café state" hidden>
+          <dl class="totals" id="totals"></dl>
+          <div class="actions" id="actions">
+            <button type="button" data-command="espresso">Add espresso</button>
+            <button type="button" data-command="latte">Add latte</button>
+            <button type="button" data-command="close">Close café</button>
+          </div>
+
+          <section class="readout" aria-labelledby="grinder-title">
+            <h2 id="grinder-title">Grinder</h2>
+            <dl class="equipment" id="grinder"></dl>
+          </section>
+
+          <section class="readout" aria-labelledby="orders-title">
+            <h2 id="orders-title">Orders</h2>
+            <p id="no-orders" class="empty">Waiting for the first order.</p>
+            <div class="table-wrap" id="order-table" hidden>
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Order</th>
+                    <th scope="col">Drink</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Payment</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="orders"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="readout" aria-labelledby="actors-title">
+            <h2 id="actors-title">Actor activity</h2>
+            <ul class="actors" id="actors"></ul>
+          </section>
+        </section>
+      </section>
+
+      <section class="inspector" aria-labelledby="inspector-title">
+        <div class="inspector-header">
+          <h2 id="inspector-title">Stately Inspector</h2>
+          <a
+            id="inspector-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+            >Open in Stately ↗</a
+          >
+        </div>
+        <div class="inspector-content" id="inspector-pane">
+          <p class="inspector-empty" id="inspector-empty">
+            Enable “Stream to Stately” and start a café to inspect its actors
+            here.
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
