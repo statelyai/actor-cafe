@@ -10,8 +10,6 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import type { CafeBackend, Runtime } from '@actor-cafe/contract';
 import { z } from 'zod';
-import { createRivetBackend } from '../../../apps/rivet/src/rivet/backend.ts';
-import { createRestateBackend } from '../../../apps/restate/src/backend.ts';
 
 const loopback = '127.0.0.1';
 const addr = (port: number) => `${loopback}:${port}`;
@@ -184,6 +182,9 @@ export async function nativeFixture(
   });
 
   if (runtime === 'rivet') {
+    const { createRivetBackend } = await import(
+      '../../../apps/rivet/src/rivet/backend.ts'
+    );
     const port = await freePorts([1, 10]);
     const startWorker = async (fault: boolean) => {
       const worker = forkWorker(
@@ -215,6 +216,9 @@ export async function nativeFixture(
     };
   }
 
+  const { createRestateBackend } = await import(
+    '../../../apps/restate/src/backend.ts'
+  );
   const port = await freePorts([1, 2, 3]);
   const admin = url(port + 1);
   const ingress = url(port + 2);
