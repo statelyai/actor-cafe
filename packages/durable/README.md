@@ -137,7 +137,7 @@ Custom actions execute again during replay. Arbitrary external actions do not ga
 
 <!-- SDK inspection resume requirement from src/execution.ts and package.json -->
 
-The hosts require `@statelyai/sdk` `0.42.0`, which supplies `Inspector.resume` checkpoints and
+The hosts require `@statelyai/sdk` `0.52.0`, which supplies `Inspector.resume` checkpoints and
 `Inspector.publish` committed batches. This package and the café pin the same registry version.
 Install the café workspace dependencies normally; no SDK checkout or local tarball is required.
 

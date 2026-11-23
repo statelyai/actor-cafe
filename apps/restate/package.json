@@ -9,7 +9,7 @@
   "dependencies": {
     "@actor-cafe/contract": "workspace:*",
     "@restatedev/restate-sdk": "1.18.4",
-    "@statelyai/sdk": "0.42.0",
+    "@statelyai/sdk": "0.52.0",
     "zod": "4.3.6"
   },
   "devDependencies": {

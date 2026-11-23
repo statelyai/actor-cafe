@@ -86,9 +86,9 @@ export function createCafeService(
   ) {
     const roomId = cafe.roomId;
     if (roomId === null) return null;
-    return ctx.run('publish inspection', () => {
+    return ctx.run('publish inspection', async () => {
       try {
-        return inspection.publish(roomId, cafe.revision, actors);
+        return await inspection.publish(roomId, cafe.revision, actors);
       } catch (error) {
         console.warn('Could not publish café inspection:', error);
         return null;

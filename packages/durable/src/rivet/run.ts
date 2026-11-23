@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { queue, type RunContext } from 'rivetkit';
 import { db } from 'rivetkit/db';
@@ -96,6 +97,8 @@ export function xstate<
       response: undefined,
     ) => Promise<void>;
     let inspector: Inspector | undefined;
+    let viewerUrl: string | null = null;
+    let viewerLink: Promise<void> | undefined;
     let transport: Transport | undefined;
     const now = options.now ?? Date.now;
     const run = workflow<
@@ -116,7 +119,7 @@ export function xstate<
         producerId: randomUUID(),
         inspect:
           typeof options.inspect === 'object'
-            ? (options.inspect.enabled?.(step) ?? true)
+            ? options.inspect.enabled?.(step) ?? true
             : !!options.inspect,
       }));
       if (metadata.inspect && !inspector) {
@@ -139,6 +142,12 @@ export function xstate<
             }),
         });
         void inspector.ready.catch(() => {});
+        viewerLink = inspector.createViewerLink({ maxUses: 100 }).then(
+          ({ openUrl }) => {
+            viewerUrl = openUrl;
+          },
+          () => {},
+        );
       }
       const resource =
         typeof logic === 'function'
@@ -157,11 +166,16 @@ export function xstate<
       });
       const view = (): DurableActorView => ({
         ...execution.view(),
-        inspectorUrl: inspector?.inspectorUrl ?? null,
+        inspectorUrl: viewerUrl,
       });
       const publish = async (key: string, delivery: Delivery | null) => {
         await options.beforePublish?.(view());
         await context.step(key, async (step) => {
+          if (!delivery && viewerLink && !viewerUrl)
+            await Promise.race([
+              viewerLink,
+              delay(2_000, undefined, { ref: false }),
+            ]);
           await options.onSnapshot?.(step, view(), delivery);
           if (inspector) execution.commitInspection(inspector);
         });
@@ -248,7 +262,7 @@ export function xstate<
               pending = {
                 address: execution.execution.rootAddress,
                 event: mapped.event,
-                commandId: 'id' in mapped ? (mapped.id ?? null) : null,
+                commandId: 'id' in mapped ? mapped.id ?? null : null,
                 acceptedAt: received.createdAt,
                 at: Math.max(execution.now, received.createdAt),
               };
@@ -264,8 +278,8 @@ export function xstate<
             selection === 'timer'
               ? timer
               : selection === 'message'
-                ? pending
-                : undefined;
+              ? pending
+              : undefined;
           if (!delivery) continue;
           const consumed = selection === 'message';
           if (consumed) pending = undefined;

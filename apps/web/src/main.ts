@@ -20,6 +20,7 @@ const runtimeField = element<HTMLSelectElement>('runtime');
 const start = element<HTMLButtonElement>('start');
 const connection = element('connection');
 const runStatus = element('run-status');
+const inspectorTitle = element('inspector-title');
 const error = element('error');
 const floor = element('floor');
 const totals = element('totals');
@@ -368,6 +369,10 @@ form.addEventListener('submit', async (event) => {
       config.data,
     );
     run = { id: value.id, runtime: runtime.data, inspect: config.data.inspect };
+    inspectorTitle.textContent =
+      runtime.data === 'restate'
+        ? 'Stately Inspector · Restate projection'
+        : 'Stately Inspector';
     snapshot = undefined;
     snapshotError = '';
     floor.hidden = true;

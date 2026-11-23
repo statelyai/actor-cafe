@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { createInspector, type Inspector } from '@statelyai/sdk/inspect';
 import type { CafeSnapshot } from '@actor-cafe/contract';
 
@@ -54,7 +55,12 @@ function graph(kind: Actor['kind']) {
 export function createInspection() {
   const rooms = new Map<
     string,
-    { inspector: Inspector; states: Map<string, string>; revision: number }
+    {
+      inspector: Inspector;
+      states: Map<string, string>;
+      revision: number;
+      link: Promise<string | null>;
+    }
   >();
   return {
     publish(roomId: string, revision: number, actors: Actor[]) {
@@ -70,10 +76,18 @@ export function createInspection() {
         void inspector.ready.catch((error: unknown) => {
           console.warn('Could not connect to Stately Inspector:', error);
         });
-        room = { inspector, states: new Map(), revision: -1 };
+        room = {
+          inspector,
+          states: new Map(),
+          revision: -1,
+          link: inspector.createViewerLink({ maxUses: 100 }).then(
+            ({ openUrl }) => openUrl,
+            () => null,
+          ),
+        };
         rooms.set(roomId, room);
       }
-      if (revision < room.revision) return room.inspector.inspectorUrl;
+      if (revision < room.revision) return room.link;
       room.revision = revision;
       for (const actor of actors) {
         const previous = room.states.get(actor.id);
@@ -100,7 +114,7 @@ export function createInspection() {
           });
         room.states.set(actor.id, actor.state);
       }
-      return room.inspector.inspectorUrl;
+      return Promise.race([room.link, delay(2_000, null, { ref: false })]);
     },
     destroy() {
       for (const room of rooms.values()) room.inspector.destroy();
