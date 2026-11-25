@@ -1,6 +1,7 @@
 import { fork, spawn, type ChildProcess } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import { once } from 'node:events';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import type { TestContext } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { createHttpBackend } from '@actor-cafe/cafe/http';
 import type { CafeBackend, Runtime } from '@actor-cafe/contract';
 import { z } from 'zod';
 
@@ -29,15 +31,12 @@ async function reserve(port: number) {
 
 async function freePorts(offsets: number[]): Promise<number> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const probe = await reserve(0);
-    const address = probe.address();
-    if (!address || typeof address === 'string')
-      throw new Error('Expected a TCP address');
-    const servers = [probe];
+    const port = randomInt(20000, 45000);
+    const servers = [];
     try {
-      for (const offset of offsets)
-        servers.push(await reserve(address.port + offset));
-      return address.port;
+      for (const offset of [0, ...offsets])
+        servers.push(await reserve(port + offset));
+      return port;
     } catch (error) {
       if (
         !(error instanceof Error) ||
@@ -63,7 +62,10 @@ class NativeProcess {
   readonly log: () => string;
   private error: Error | undefined;
 
-  constructor(readonly child: ChildProcess) {
+  constructor(
+    readonly child: ChildProcess,
+    readonly group = false,
+  ) {
     let output = '';
     this.log = () => output;
     for (const stream of [child.stderr, child.stdout]) {
@@ -114,7 +116,8 @@ class NativeProcess {
     )
       return;
     const exited = once(this.child, 'exit');
-    this.child.kill('SIGKILL');
+    if (this.group) process.kill(-this.child.pid, 'SIGKILL');
+    else this.child.kill('SIGKILL');
     await exited;
   }
 }
@@ -182,9 +185,8 @@ export async function nativeFixture(
   });
 
   if (runtime === 'rivet') {
-    const { createRivetBackend } = await import(
-      '../../../apps/rivet/src/rivet/backend.ts'
-    );
+    const { createRivetBackend } =
+      await import('../../../apps/rivet/src/rivet/backend.ts');
     const port = await freePorts([1, 10]);
     const startWorker = async (fault: boolean) => {
       const worker = forkWorker(
@@ -216,9 +218,15 @@ export async function nativeFixture(
     };
   }
 
-  const { createRestateBackend } = await import(
-    '../../../apps/restate/src/backend.ts'
-  );
+  if (
+    runtime === 'cloudflare' ||
+    runtime === 'temporal' ||
+    runtime === 'workflow'
+  )
+    return extraFixture(runtime, chargeFault, directory, processes);
+
+  const { createRestateBackend } =
+    await import('../../../apps/restate/src/backend.ts');
   const port = await freePorts([1, 2, 3]);
   const admin = url(port + 1);
   const ingress = url(port + 2);
@@ -289,6 +297,204 @@ advertised-ingress-endpoint = "${ingress}/"
       } finally {
         db.close();
       }
+      await worker.kill();
+      await startWorker(false);
+      return orderId;
+    },
+  };
+}
+
+const project = fileURLToPath(new URL('../../../', import.meta.url));
+
+function startProcess(
+  processes: NativeProcess[],
+  binary: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = {},
+) {
+  const worker = new NativeProcess(
+    spawn(binary, args, {
+      cwd,
+      env: { ...process.env, ...env },
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
+    true,
+  );
+  processes.push(worker);
+  return worker;
+}
+
+async function waitUntil<T>(
+  worker: NativeProcess,
+  name: string,
+  read: () => Promise<T | undefined>,
+): Promise<T> {
+  const deadline = Date.now() + 75_000;
+  while (Date.now() < deadline) {
+    worker.assertRunning();
+    try {
+      const result = await read();
+      if (result !== undefined) return result;
+    } catch {
+      // The process may have bound its port before loading its handlers.
+    }
+    await delay(100);
+  }
+  throw new Error(`Timed out waiting for ${name}\n${worker.log()}`);
+}
+
+async function httpReady(worker: NativeProcess, endpoint: string) {
+  await waitUntil(worker, endpoint, async () => {
+    const response = await fetch(`${endpoint}/healthz`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok ? true : undefined;
+  });
+}
+
+async function extraFixture(
+  runtime: 'cloudflare' | 'temporal' | 'workflow',
+  chargeFault: boolean,
+  directory: string,
+  processes: NativeProcess[],
+): Promise<Fixture> {
+  const port = await freePorts([1, 2]);
+  const endpoint = url(port);
+  const backend = createHttpBackend(endpoint);
+  const pnpm = process.env.npm_execpath ?? 'pnpm';
+  const dbPath = join(directory, 'payments.sqlite');
+  if (runtime === 'temporal') {
+    const temporal = startProcess(
+      processes,
+      process.env.TEMPORAL_CLI ?? 'temporal',
+      [
+        'server',
+        'start-dev',
+        '--ip',
+        loopback,
+        '--port',
+        String(port + 1),
+        '--headless',
+        '--db-filename',
+        join(directory, 'temporal.sqlite'),
+      ],
+      project,
+    );
+    await waitUntil(temporal, 'Temporal service', async () => {
+      const socket = await import('node:net');
+      return new Promise<true | undefined>((resolve) => {
+        const client = socket.connect(port + 1, loopback);
+        client.once('connect', () => {
+          client.destroy();
+          resolve(true);
+        });
+        client.once('error', () => resolve(undefined));
+      });
+    });
+  }
+
+  async function startWorker(fault: boolean) {
+    const env = {
+      CAFE_PAYMENT_DB: dbPath,
+      CAFE_CRASH_AFTER_CHARGE: fault ? '1' : '0',
+    };
+    if (runtime === 'temporal') {
+      const worker = forkWorker(
+        new URL('../../../apps/temporal/src/main.ts', import.meta.url),
+        [],
+        {
+          ...env,
+          TEMPORAL_ADDRESS: addr(port + 1),
+          CAFE_HTTP_PORT: String(port),
+        },
+      );
+      processes.push(worker);
+      await worker.wait('ready');
+      return worker;
+    }
+    const worker =
+      runtime === 'workflow'
+        ? startProcess(
+            processes,
+            pnpm,
+            [
+              'exec',
+              'next',
+              'dev',
+              '--hostname',
+              loopback,
+              '--port',
+              String(port),
+            ],
+            join(project, 'apps/workflow'),
+            {
+              ...env,
+              WORKFLOW_LOCAL_DATA_DIR: join(directory, 'workflow'),
+              WORKFLOW_LOCAL_BASE_URL: endpoint,
+            },
+          )
+        : startProcess(
+            processes,
+            pnpm,
+            [
+              'exec',
+              'wrangler',
+              'dev',
+              '--local',
+              '--ip',
+              loopback,
+              '--port',
+              String(port),
+              '--persist-to',
+              join(directory, 'objects'),
+              '--var',
+              `CAFE_FAULT:${fault ? '1' : '0'}`,
+            ],
+            join(project, 'apps/cloudflare'),
+            {
+              WRANGLER_SEND_METRICS: 'false',
+            },
+          );
+    await httpReady(worker, endpoint);
+    return worker;
+  }
+
+  const worker = await startWorker(chargeFault);
+  return {
+    backend,
+    async crashAndRestart(runId) {
+      const orderId = await waitUntil(
+        worker,
+        'durable payment commit',
+        async () => {
+          if (runtime === 'cloudflare') {
+            const res = await fetch(`${endpoint}/fixture/${runId}/charge`);
+            if (!res.ok) return;
+            return (
+              z
+                .string()
+                .nullable()
+                .parse(await res.json()) ?? undefined
+            );
+          }
+          await access(dbPath);
+          const db = new DatabaseSync(dbPath, { readOnly: true });
+          try {
+            const rows = db
+              .prepare(
+                "SELECT order_id FROM payments WHERE cafe_id = ? AND kind = 'charge'",
+              )
+              .all(runId);
+            if (!rows.length) return;
+            return z.tuple([z.object({ order_id: z.string() })]).parse(rows)[0]
+              .order_id;
+          } finally {
+            db.close();
+          }
+        },
+      );
       await worker.kill();
       await startWorker(false);
       return orderId;

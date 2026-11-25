@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from 'rivetkit/client';
 import { afterEach, expect, test } from 'vitest';
 import { z } from 'zod';
-import { cafeInputSchema } from '../model.ts';
+import { cafeInputSchema } from '@actor-cafe/cafe/model';
 import { createCafeRegistry, viewSchema } from './registry.ts';
 import { retryIdempotentRivetRequest } from './requests.ts';
 

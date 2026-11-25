@@ -1,34 +1,43 @@
 # Actor Café
 
-Actor Café compares durable actor and workflow runtimes through a café simulation. Customers order drinks, baristas share equipment, and orders can be cancelled after payment.
-
-<!-- workspace entry points from package.json and scripts/dev.ts -->
+Actor Café runs one XState v6 actor system on five durable runtimes. Customers order drinks, baristas share equipment, and customers can cancel paid orders.
 
 ## Run the comparison
 
-Install Node 24.17 or later, pnpm, and [Restate Server](https://docs.restate.dev/develop/local_dev). The Restate tests were run with server 1.4.3.
+<!-- Workspace entry points from package.json and scripts/dev.ts -->
+
+Install Node 24.17 or later, pnpm, [Restate Server](https://docs.restate.dev/develop/local_dev), and the [Temporal CLI](https://docs.temporal.io/cli). The local launcher starts all five runtimes and stores their data under `.cafe/comparison`.
 
 ```sh
 pnpm install
-pnpm dev
+pnpm dev:all
 ```
 
-Open <http://localhost:5173>. Pick a runtime and start a café. The left pane shows orders, actors, grinder reservations, and payment status. Select live inspection when starting a run to load the Stately Inspector in the right pane. The hosted Inspector receives synthetic demo state. Anyone with the viewer link can view that run.
+Open <http://127.0.0.1:5173>. Pick a runtime and start a café. The left pane shows orders, actors, equipment, and payment status. Enable live inspection to show the XState actor tree in Stately on the right. The hosted Inspector receives synthetic demo state. Anyone with the viewer link can view that run.
 
-The dev launcher starts both local runtimes and stores their data under `.cafe/`. Use `CAFE_RIVET_ONLY=1 pnpm dev` to run without Restate Server. The [Rivet CLI](apps/rivet/README.md) also runs on its own.
+Use `pnpm dev` for Rivet and Restate, or `CAFE_RIVET_ONLY=1 pnpm dev` for Rivet alone. The [Rivet CLI](apps/rivet/README.md) also runs independently.
 
-<!-- runtime boundaries from apps/rivet, apps/restate, packages/contract, and scripts/gateway.ts -->
+## What each runtime owns
 
-## Implementations
+<!-- Runtime boundaries from apps, packages/cafe, and scripts/gateway.ts -->
 
-- [XState + Rivet](apps/rivet/README.md) runs the XState actor tree in a Rivet actor through `run: xstate(...)`. The Inspector shows the actual XState actors and their machine state.
-- [Restate](apps/restate/README.md) uses a keyed Virtual Object to coordinate one café. Durable messages schedule work and a separate payment service handles effects. Stately shows a manual projection of the persisted café entities.
+All five import [the same café machine factory](packages/cafe/src/model.ts), which defines the café, customers, orders, baristas, equipment, and payments. Each host owns one café run. The XState child actors share that run and communicate within it.
 
-The Rivet version was imported from [rivet-xstate at the XState beta upgrade](https://github.com/davidkpiano/rivet-xstate/tree/8b3ff42c71cd0c86b8b02379c73b0a310d72dbf4/examples/cafe). The runtimes share API and observation schemas in `packages/contract`. Each runtime owns its own domain logic and state. The shared scenarios define the behavior compared here. Equipment breakdowns and customer patience are Rivet demo features.
+| Runtime | Native primitives | Example |
+| --- | --- | --- |
+| Rivet | Actor queue, workflow steps, per-actor SQLite, payment actor | [Registry](apps/rivet/src/rivet/registry.ts) |
+| Restate | Virtual Object, exclusive commands, delayed self-messages, journaled effects | [Service](apps/restate/src/cafe.ts) |
+| Cloudflare | Durable Object, storage transaction with one alarm, separate payment object | [Worker](apps/cloudflare/src/worker.ts) |
+| Temporal | Workflow signals, durable timer condition, Activities, snapshot query | [Workflow](apps/temporal/src/workflow.ts) |
+| Vercel Workflow | Workflow hooks, durable sleep, steps, local SQLite read model | [Workflow](apps/workflow/src/workflow.ts) |
 
-<!-- shared scenarios from packages/scenarios and test scripts from package.json -->
+The Rivet example began in [rivet-xstate](https://github.com/davidkpiano/rivet-xstate/pull/8). All examples use simulated payments. The Temporal and Vercel examples use local SQLite for the simulated provider. A hosted multi-worker deployment needs shared durable storage for that provider and, for Vercel, the read model.
+
+See the [comparison notes and XState upstream gaps](docs/durable-execution.md).
 
 ## Verify
+
+<!-- Shared scenarios from packages/scenarios and test scripts from package.json -->
 
 ```sh
 pnpm typecheck
@@ -37,10 +46,4 @@ pnpm test:scenarios
 pnpm test
 ```
 
-The same three scenarios run against native Rivet and Restate processes.
-
-1. Two baristas contend for one grinder. Both orders complete, with one charge each.
-2. A customer cancels a paid order. The order ends cancelled and has one charge and one refund.
-3. A worker dies after a charge commits and before its result is recorded. The same run resumes and records one effective charge.
-
-The scenario tests start isolated local runtimes and use synthetic payments. The full suite also runs the imported Rivet and SQLite recovery tests.
+The shared suite runs the same three scenarios against each local runtime. It checks grinder contention, one refund after cancellation, and recovery after a worker dies following a committed charge. `pnpm test` also runs the original Rivet and SQLite regression suites. To select one runtime, run `CAFE_RUNTIME=cloudflare pnpm test:scenarios`. Use `TEMPORAL_CLI` or `RESTATE_SERVER` to override either server executable.

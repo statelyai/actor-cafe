@@ -36,7 +36,7 @@ Use a different `--db` path for another run.
 
 ## Operate the café
 
-<!-- commands parsed by src/main.ts and src/model.ts -->
+<!-- commands parsed by src/main.ts and ../../packages/cafe/src/model.ts -->
 
 Customers arrive at staggered times. Orders alternate between espresso and latte.
 Baristas share a grinder, espresso machine, and frother. The terminal serializes payments.

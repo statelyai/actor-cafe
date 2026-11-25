@@ -13,6 +13,8 @@ import {
   type Runtime,
 } from '@actor-cafe/contract';
 import { z } from 'zod';
+import { createHttpBackend } from '@actor-cafe/cafe/http';
+import { createInspection } from '@actor-cafe/cafe/inspection';
 import { createRivetBackend } from '../apps/rivet/src/rivet/backend.ts';
 import { createRestateBackend } from '../apps/restate/src/backend.ts';
 
@@ -27,6 +29,32 @@ const rivet = createRivetBackend(
 const backends: Partial<Record<Runtime, CafeBackend>> = { rivet };
 if (process.env.RESTATE_CAFE_INGRESS)
   backends.restate = createRestateBackend(process.env.RESTATE_CAFE_INGRESS);
+
+const extraEndpoints = {
+  cloudflare: process.env.CLOUDFLARE_CAFE_URL,
+  temporal: process.env.TEMPORAL_CAFE_URL,
+  workflow: process.env.WORKFLOW_CAFE_URL,
+} satisfies Partial<Record<Runtime, string | undefined>>;
+const inspections: ReturnType<typeof createInspection>[] = [];
+for (const runtime of Object.keys(
+  extraEndpoints,
+) as (keyof typeof extraEndpoints)[]) {
+  const endpoint = extraEndpoints[runtime];
+  if (!endpoint) continue;
+  const backend = createHttpBackend(endpoint);
+  const inspector = createInspection(runtime);
+  inspections.push(inspector);
+  backends[runtime] = {
+    ...backend,
+    async snapshot(id) {
+      const snapshot = await backend.snapshot(id);
+      const state = await backend.journal(id);
+      if (!state) return snapshot;
+      const inspectorUrl = await inspector.publish(state);
+      return { ...state.snapshot, inspectorUrl };
+    },
+  };
+}
 
 async function body(req: IncomingMessage): Promise<unknown> {
   if (req.headers['content-type']?.split(';')[0] !== 'application/json')
@@ -112,4 +140,5 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.once(signal, () => {
     server.close();
     void rivet.dispose();
+    for (const inspector of inspections) inspector.destroy();
   });

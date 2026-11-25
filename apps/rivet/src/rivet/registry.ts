@@ -10,7 +10,7 @@ import {
   cafeInputSchema,
   cafeCommandSchema,
   type CafeCommand,
-} from '../model.ts';
+} from '@actor-cafe/cafe/model';
 import { paymentLedger } from './payments.ts';
 import { openCafeLogic, admitCafeCommand } from './services.ts';
 import { commandInbox, type Command, type Metadata } from './commands.ts';

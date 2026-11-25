@@ -4,6 +4,11 @@ packages:
 allowBuilds:
   cbor-extract: true
   esbuild: true
+  workerd: true
+  "@swc/core": true
+  "@temporalio/core-bridge": true
+  protobufjs: true
+  sharp: true
 minimumReleaseAgeExclude:
   - '@rivetkit/engine-api-full@2.3.31'
   - '@rivetkit/engine-cli-darwin-arm64@2.3.31'

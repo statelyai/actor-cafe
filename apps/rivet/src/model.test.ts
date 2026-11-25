@@ -5,7 +5,7 @@ import {
   cafeInputSchema,
   createCafeMachine,
   type CafeServices,
-} from './model.ts';
+} from '@actor-cafe/cafe/model';
 
 function cafe(
   options: {

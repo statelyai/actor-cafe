@@ -1,7 +1,7 @@
 import { createClient } from 'rivetkit/client';
 import type { Registry } from 'rivetkit';
 import { retryIdempotentRivetRequest } from './requests.ts';
-import { createCafeMachine, type CafeCommand } from '../model.ts';
+import { createCafeMachine, type CafeCommand } from '@actor-cafe/cafe/model';
 import { UserError } from 'rivetkit';
 import { paymentLedger } from './payments.ts';
 

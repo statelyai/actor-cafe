@@ -2,8 +2,8 @@ import { createServer } from 'node:http2';
 import * as restate from '@restatedev/restate-sdk';
 import { z } from 'zod';
 import { createCafeService } from './cafe.ts';
-import { createInspection } from './inspection.ts';
-import { createPayments, paymentProvider } from './payment.ts';
+import { createInspection } from '@actor-cafe/cafe/inspection';
+import { paymentProvider } from '@actor-cafe/cafe/payment-db';
 
 const port = z.coerce
   .number()
@@ -23,11 +23,12 @@ const provider = paymentProvider(paymentDb, (payment) => {
     process.kill(process.pid, 'SIGSTOP');
   }
 });
-const payments = createPayments(provider);
-const inspection = createInspection();
+const inspection = createInspection('Restate');
 const server = createServer(
   restate.createEndpointHandler({
-    services: [createCafeService(payments, inspection), payments],
+    services: [
+      createCafeService((request) => provider.pay(request), inspection),
+    ],
   }),
 );
 

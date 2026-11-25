@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { createClient } from 'rivetkit/client';
-import { cafeCommandSchema, cafeInputSchema } from '../model.ts';
+import { cafeCommandSchema, cafeInputSchema } from '@actor-cafe/cafe/model';
 import { viewSchema } from './registry.ts';
 import { retryIdempotentRivetRequest } from './requests.ts';
 

@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./rivet": "./src/rivet/index.ts"
+    "./rivet": "./src/rivet/index.ts",
+    "./journal": "./src/journal.ts"
   },
   "dependencies": {
     "@statelyai/sdk": "0.52.0",

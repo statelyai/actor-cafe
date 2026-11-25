@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { cafeCommandSchema, cafeInputSchema } from './model.ts';
+import { cafeCommandSchema, cafeInputSchema } from '@actor-cafe/cafe/model';
 import { openCafe } from './run.ts';
 
 const { values } = parseArgs({

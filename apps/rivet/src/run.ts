@@ -1,5 +1,5 @@
 import { createInspector, type Inspector } from '@statelyai/sdk/inspect';
-import { createCafeMachine, cafeInputSchema, type CafeInput } from './model.ts';
+import { createCafeMachine, cafeInputSchema, type CafeInput } from '@actor-cafe/cafe/model';
 import { LocalDurableHost } from './local-host.ts';
 import { serializable } from '@demo/xstate-durable';
 import { CafeStore } from './store.ts';

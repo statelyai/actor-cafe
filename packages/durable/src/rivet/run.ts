@@ -1,3 +1,4 @@
+import { isTransportFailure } from './requests.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { queue, type RunContext } from 'rivetkit';
@@ -119,7 +120,7 @@ export function xstate<
         producerId: randomUUID(),
         inspect:
           typeof options.inspect === 'object'
-            ? options.inspect.enabled?.(step) ?? true
+            ? (options.inspect.enabled?.(step) ?? true)
             : !!options.inspect,
       }));
       if (metadata.inspect && !inspector) {
@@ -165,6 +166,7 @@ export function xstate<
         startedAt: metadata.startedAt,
         signal: outer.abortSignal,
         journal: (key, run) => context.step(key, async () => run()),
+        retryError: isTransportFailure,
       });
       const view = (): DurableActorView => ({
         ...execution.view(),
@@ -264,7 +266,7 @@ export function xstate<
               pending = {
                 address: execution.execution.rootAddress,
                 event: mapped.event,
-                commandId: 'id' in mapped ? mapped.id ?? null : null,
+                commandId: 'id' in mapped ? (mapped.id ?? null) : null,
                 acceptedAt: received.createdAt,
                 at: Math.max(execution.now, received.createdAt),
               };
@@ -280,8 +282,8 @@ export function xstate<
             selection === 'timer'
               ? timer
               : selection === 'message'
-              ? pending
-              : undefined;
+                ? pending
+                : undefined;
           if (!delivery) continue;
           const consumed = selection === 'message';
           if (consumed) pending = undefined;

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { LocalDurableHost } from './local-host.ts';
-import { cafeInputSchema, createCafeMachine } from './model.ts';
+import { cafeInputSchema, createCafeMachine } from '@actor-cafe/cafe/model';
 import { CafeStore } from './store.ts';
 
 const fixtureSchema = z.object({

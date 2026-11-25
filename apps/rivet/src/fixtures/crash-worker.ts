@@ -1,5 +1,5 @@
 import { openCafe } from '../run.ts';
-import { cafeInputSchema } from '../model.ts';
+import { cafeInputSchema } from '@actor-cafe/cafe/model';
 
 const [database, mode] = process.argv.slice(2);
 if (!database) throw new Error('Database path required.');

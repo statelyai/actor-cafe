@@ -1,12 +1,10 @@
 # Restate café
 
-<!-- Restate service definitions in src/cafe.ts and src/payment.ts -->
+<!-- Restate service and payment wiring from src/cafe.ts and src/main.ts -->
 
-A keyed `Cafe` Virtual Object owns one café's orders, baristas, and equipment. Exclusive handlers serialize changes within the café. A shared handler reads its current view. Delayed Restate messages move customers through arrival, payment, brewing, and handoff without holding one invocation open per customer.
+A keyed `Cafe` Virtual Object runs the shared XState café. An exclusive handler delivers each command or timer. A delayed self-message wakes the object at the next deadline. The object stores the actor journal and the dashboard view. A shared handler reads the view.
 
-The `Payments` service wraps the simulated provider in a durable step. The provider keeps a SQLite receipt per café, order, and operation. When the service restarts after the provider commits a charge, retrying returns the existing receipt. Café cancellation issues a refund for a paid order that has yet to be served.
-
-Stately shows a projection of the coordinator's customers, orders, equipment, and payments. The projection publishes their states and hierarchy. Restate persists them together inside the café Virtual Object. Enable inspection to stream demo state to the configured Stately relay.
+The Virtual Object journals each turn with `ctx.run`. The simulated payment provider commits a SQLite receipt keyed by café, order, and operation. A retry after a crash returns that receipt. Stately reconstructs the XState actor tree from committed turns.
 
 ## Run locally
 

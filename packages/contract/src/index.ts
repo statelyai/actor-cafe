@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const runtimeSchema = z.enum(['rivet', 'restate']);
+export const runtimeSchema = z.enum(['rivet', 'restate', 'cloudflare', 'temporal', 'workflow']);
 export const drinkSchema = z.enum(['espresso', 'latte']);
 export const runConfigSchema = z.object({
   customers: z.number().int().min(0).max(100),

@@ -3,7 +3,7 @@
 <!-- package exports and supported versions from package.json and src/index.ts -->
 
 Private workspace experiment for XState `6.0.0-beta.5` and RivetKit `2.3.31`.
-The neutral execution driver is exported from `@demo/xstate-durable`.
+The neutral execution driver is exported from `@demo/xstate-durable`. Hosts that journal individual effects can use `@demo/xstate-durable/journal`.
 The Rivet entry point exports one runtime function, `xstate`. No module imports the café.
 A hypothetical published package could expose that function as `@xstate/rivet`.
 
@@ -89,11 +89,11 @@ Event transforms run at the application boundary. Replay uses recorded parsed ev
 
 ## Durability boundaries
 
-<!-- replay, timer and inspection implementation from src/execution.ts and src/rivet -->
+<!-- replay, timer and inspection implementation from src/execution.ts, src/journal.ts, and src/rivet -->
 
 `DurableActorExecution` owns logical time, root and child delivery, effect execution, mailbox draining,
 and inspection checkpoints and turn buffers.
-`RivetExecution` supplies timer scheduling and async-result journaling. The `xstate` handler owns Rivet
+`JournalExecution` supplies timer scheduling and async-result journaling. The `xstate` handler owns Rivet
 workflow steps, native queue consumption, publication, and inspection lifecycle.
 
 Both hosts use the timer's logical identity for cancellation and retain its occurrence in new timer deliveries.

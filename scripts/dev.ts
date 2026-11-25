@@ -1,10 +1,13 @@
 import { fork, spawn, type ChildProcess } from 'node:child_process';
+import { connect } from 'node:net';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const processes: ChildProcess[] = [];
-const data = resolve('.cafe');
+const groups = new Set<ChildProcess>();
+const data = resolve('.cafe', 'comparison');
+const cli = process.env.npm_execpath ?? 'pnpm';
 const rivetPort = 16480;
 const restate = { node: 15122, ingress: 18080, admin: 19070, service: 19080 };
 const baseUrl = (port: number) => `http://127.0.0.1:${port}`;
@@ -13,7 +16,8 @@ let stopping = false;
 function stop() {
   if (stopping) return;
   stopping = true;
-  for (const child of processes.slice().reverse()) child.kill('SIGTERM');
+  for (const child of processes.slice().reverse())
+    signalChild(child, 'SIGTERM');
   if (enginePid) {
     try {
       process.kill(enginePid, 'SIGTERM');
@@ -25,10 +29,116 @@ function stop() {
     .setTimeout(() => {
       for (const child of processes)
         if (child.exitCode === null && child.signalCode === null)
-          child.kill('SIGKILL');
+          signalChild(child, 'SIGKILL');
     }, 3_000)
     .unref();
 }
+function signalChild(child: ChildProcess, signal: NodeJS.Signals) {
+  if (!child.pid) return;
+  try {
+    process.kill(groups.has(child) ? -child.pid : child.pid, signal);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !('code' in error) ||
+      error.code !== 'ESRCH'
+    )
+      throw error;
+  }
+}
+
+function command(binary: string, args: string[], env: NodeJS.ProcessEnv = {}) {
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: 'inherit',
+    env: { ...process.env, ...env },
+  });
+  groups.add(child);
+  return manage(child);
+}
+
+async function waitFor(label: string, isReady: () => Promise<boolean>) {
+  const deadline = Date.now() + 60_000;
+  while (!stopping && Date.now() < deadline) {
+    try {
+      if (await isReady()) return;
+    } catch {}
+    await delay(200);
+  }
+  throw new Error(`${label} startup timed out.`);
+}
+
+const waitHttp = (port: number) =>
+  waitFor(baseUrl(port), async () => {
+    const response = await fetch(`${baseUrl(port)}/healthz`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  });
+
+async function startComparison(env: NodeJS.ProcessEnv) {
+  const ports = {
+    cloudflare: 8787,
+    temporal: 4301,
+    temporalServer: 7233,
+    workflow: 4302,
+  };
+  command(
+    cli,
+    [
+      '--filter',
+      '@actor-cafe/cloudflare',
+      'dev',
+      '--persist-to',
+      resolve(data, 'objects'),
+    ],
+    { WRANGLER_SEND_METRICS: 'false' },
+  );
+  command(cli, ['--filter', '@actor-cafe/workflow', 'dev'], {
+    WORKFLOW_LOCAL_BASE_URL: baseUrl(ports.workflow),
+    WORKFLOW_LOCAL_DATA_DIR: resolve(data, 'workflow'),
+    CAFE_PAYMENT_DB: resolve(data, 'workflow-payments.sqlite'),
+  });
+  command(process.env.TEMPORAL_CLI ?? 'temporal', [
+    'server',
+    'start-dev',
+    '--ip',
+    '127.0.0.1',
+    '--port',
+    String(ports.temporalServer),
+    '--headless',
+    '--db-filename',
+    resolve(data, 'temporal.sqlite'),
+  ]);
+  await waitFor(
+    'Temporal',
+    () =>
+      new Promise((resolve) => {
+        const socket = connect(ports.temporalServer, '127.0.0.1');
+        socket.once('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.once('error', () => resolve(false));
+      }),
+  );
+  const temporal = ready(
+    node('apps/temporal/src/main.ts', [], {
+      TEMPORAL_ADDRESS: `127.0.0.1:${ports.temporalServer}`,
+      CAFE_HTTP_PORT: String(ports.temporal),
+      CAFE_PAYMENT_DB: resolve(data, 'temporal-payments.sqlite'),
+    }),
+  );
+  await Promise.all([
+    temporal,
+    waitHttp(ports.cloudflare),
+    waitHttp(ports.workflow),
+  ]);
+  env.CLOUDFLARE_CAFE_URL = baseUrl(ports.cloudflare);
+  env.TEMPORAL_CAFE_URL = baseUrl(ports.temporal);
+  env.WORKFLOW_CAFE_URL = baseUrl(ports.workflow);
+}
+
 function manage(child: ChildProcess) {
   processes.push(child);
   child.once('error', (error) => {
@@ -139,14 +249,9 @@ try {
     ]);
     env.RESTATE_CAFE_INGRESS = baseUrl(restate.ingress);
   } else await rivetReady;
+  if (process.argv.includes('--all')) await startComparison(env);
   node('scripts/gateway.ts', [], env);
-  manage(
-    spawn(
-      process.env.npm_execpath ?? 'pnpm',
-      ['--filter', '@actor-cafe/web', 'dev'],
-      { stdio: 'inherit' },
-    ),
-  );
+  command(cli, ['--filter', '@actor-cafe/web', 'dev']);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

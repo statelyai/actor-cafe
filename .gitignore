@@ -7,3 +7,11 @@ coverage/
 .scratch/
 .audit/
 .cafe/
+
+.wrangler/
+.workflow-data/
+.next/
+next-env.d.ts
+
+.swc/
+*.tsbuildinfo

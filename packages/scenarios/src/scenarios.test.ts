@@ -43,9 +43,7 @@ function send(backend: CafeBackend, runId: string, command: Command) {
 
 function grindingBaristas(snapshot: CafeSnapshot) {
   const grinding = snapshot.actors.filter(
-    (actor) =>
-      actor.kind === 'barista' &&
-      (actor.state === 'grinding' || actor.state.endsWith('.grinding')),
+    (actor) => actor.kind === 'barista' && actor.state === 'working.grinding',
   );
   assert.ok(grinding.length <= 1, 'Only one barista can grind at a time');
   return grinding;
@@ -71,15 +69,11 @@ for (const runtime of runtimes) {
       const { backend } = await nativeFixture(context, runtime, false);
       const runId = randomUUID();
       await backend.start(runId, {
-        customers: 0,
+        customers: 2,
         baristas: 2,
-        tickMs: 800,
+        tickMs: 1_500,
         inspect: false,
       });
-      await Promise.all([
-        send(backend, runId, { type: 'arrival', drink: 'latte' }),
-        send(backend, runId, { type: 'arrival', drink: 'latte' }),
-      ]);
 
       const busy = await until(
         backend,
@@ -93,6 +87,15 @@ for (const runtime of runtimes) {
             view.grinder.queued.length > 0
           );
         },
+      );
+      assert.deepEqual(
+        [...new Set(busy.actors.map(({ kind }) => kind))].sort(),
+        ['barista', 'cafe', 'customer', 'equipment', 'order', 'payment'],
+      );
+      assert.ok(
+        busy.actors.some(
+          (actor) => actor.state === 'working.waitingForGrinder',
+        ),
       );
       assert.equal(busy.grinder.queued.length, 1);
       assert.notEqual(busy.grinder.holder, busy.grinder.queued[0]);

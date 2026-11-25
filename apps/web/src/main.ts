@@ -36,7 +36,10 @@ const inspectorLink = element<HTMLAnchorElement>('inspector-link');
 
 const runtimeNames: Record<Runtime, string> = {
   rivet: 'XState + Rivet',
-  restate: 'Restate',
+  restate: 'XState + Restate',
+  cloudflare: 'XState + Cloudflare Durable Objects',
+  temporal: 'XState + Temporal',
+  workflow: 'XState + Vercel Workflow',
 };
 const runtimesSchema = z.object({ runtimes: z.array(runtimeSchema) });
 const createdSchema = z.object({ id: z.string().min(1) });
@@ -81,10 +84,15 @@ function connectionState(state: 'ready' | 'pending' | 'offline', text: string) {
   connection.dataset.state = state;
 }
 
-async function request<T>(path: string, schema: z.ZodType<T>, body?: unknown) {
+async function request<T>(
+  path: string,
+  schema: z.ZodType<T>,
+  body?: unknown,
+  timeout = 15_000,
+) {
   const response = await fetch(path, {
     cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeout),
     ...(body === undefined
       ? {}
       : {
@@ -367,12 +375,10 @@ form.addEventListener('submit', async (event) => {
       `/api/${runtime.data}/runs`,
       createdSchema,
       config.data,
+      45_000,
     );
     run = { id: value.id, runtime: runtime.data, inspect: config.data.inspect };
-    inspectorTitle.textContent =
-      runtime.data === 'restate'
-        ? 'Stately Inspector · Restate projection'
-        : 'Stately Inspector';
+    inspectorTitle.textContent = 'Stately Inspector';
     snapshot = undefined;
     snapshotError = '';
     floor.hidden = true;

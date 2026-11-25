@@ -1,0 +1,20 @@
+{
+  "name": "@actor-cafe/cafe",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./model": "./src/model.ts",
+    "./turn": "./src/turn.ts",
+    "./projection": "./src/projection.ts",
+    "./payment-db": "./src/payment-db.ts",
+    "./http": "./src/http.ts",
+    "./inspection": "./src/inspection.ts"
+  },
+  "dependencies": {
+    "@actor-cafe/contract": "workspace:*",
+    "@demo/xstate-durable": "workspace:*",
+    "xstate": "6.0.0-beta.5",
+    "zod": "4.3.6",
+    "@statelyai/sdk": "0.52.0"
+  }
+}

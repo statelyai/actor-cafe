@@ -5,7 +5,7 @@ import { afterEach, expect, test } from 'vitest';
 import { createAsyncLogic, createMachine, setup, types } from 'xstate';
 import { LocalDurableHost } from './local-host.ts';
 import { CafeStore } from './store.ts';
-import { cafeInputSchema, createCafeMachine } from './model.ts';
+import { cafeInputSchema, createCafeMachine } from '@actor-cafe/cafe/model';
 
 const directories: string[] = [];
 afterEach(() => {

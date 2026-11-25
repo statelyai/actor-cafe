@@ -1,0 +1,12 @@
+{
+  "name": "actor-cafe",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-01-01",
+  "durable_objects": {
+    "bindings": [
+      { "name": "CAFE", "class_name": "Cafe" },
+      { "name": "PAYMENTS", "class_name": "Payments" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Cafe", "Payments"] }],
+}
