@@ -1,11 +1,19 @@
 import { start, resumeHook } from 'workflow/api';
+import { HookConflictError } from 'workflow/errors';
 import { cafeHttp } from '@actor-cafe/cafe/http';
 import { cafeWorkflow } from '../../../../src/workflow.ts';
-import { readSnapshot, readJournal } from '../../../../src/storage.ts';
+import { hasRun, readSnapshot, readJournal } from '../../../../src/storage.ts';
 
 const backend: Parameters<typeof cafeHttp>[1] = {
   async start(id, config) {
-    await start(cafeWorkflow, [id, config]);
+    if (hasRun(id)) return;
+    try {
+      await start(cafeWorkflow, [id, config], {
+        experimental_hook: { token: id },
+      });
+    } catch (error) {
+      if (!HookConflictError.is(error)) throw error;
+    }
     const deadline = Date.now() + 40_000;
     while (Date.now() < deadline) {
       try {

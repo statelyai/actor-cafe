@@ -29,6 +29,7 @@ const worker = await Worker.create({
     const receipt = await paymentDb.pay(request);
     if (
       process.env.CAFE_CRASH_AFTER_CHARGE === '1' &&
+      'receiptId' in receipt &&
       request.kind === 'charge'
     )
       await new Promise(() => {});
@@ -41,6 +42,7 @@ const backend: Parameters<typeof cafeHttp>[1] = {
     try {
       await client.workflow.start(cafe, {
         workflowId: id,
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
         taskQueue,
         args: [id, config],
       });

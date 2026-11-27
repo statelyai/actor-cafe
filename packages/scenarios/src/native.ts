@@ -160,6 +160,7 @@ async function stopEngine(pid: number) {
 
 interface Fixture {
   backend: CafeBackend;
+  ingress?: string;
   crashAndRestart(runId: string): Promise<string>;
 }
 
@@ -275,6 +276,7 @@ advertised-ingress-endpoint = "${ingress}/"
 
   return {
     backend: createRestateBackend(ingress),
+    ingress,
     async crashAndRestart(runId) {
       const fault = await worker.wait('fault.payment');
       const { orderId } = z

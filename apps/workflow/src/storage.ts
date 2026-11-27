@@ -12,9 +12,12 @@ function db() {
   if (!database) {
     mkdirSync(dirname(path), { recursive: true });
     database = new DatabaseSync(path);
-    database.exec(
-      'PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; CREATE TABLE IF NOT EXISTS views (id TEXT PRIMARY KEY, state TEXT NOT NULL)',
-    );
+    database.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA busy_timeout = 5000;
+      CREATE TABLE IF NOT EXISTS views (id TEXT PRIMARY KEY, state TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS cafe_starts (id TEXT PRIMARY KEY, step_id TEXT NOT NULL);
+    `);
   }
   return database;
 }
@@ -25,6 +28,33 @@ export function writeRun(id: string, run: CafeRun) {
       'INSERT INTO views VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET state=excluded.state',
     )
     .run(id, JSON.stringify(run));
+}
+
+export function hasRun(id: string): boolean {
+  return db().prepare('SELECT 1 FROM views WHERE id = ?').get(id) !== undefined;
+}
+
+export function initializeRun(run: CafeRun, stepId: string): CafeRun | null {
+  const database = db();
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    const existing = hasRun(run.id);
+    if (!existing) {
+      writeRun(run.id, run);
+      database
+        .prepare('INSERT INTO cafe_starts VALUES (?, ?)')
+        .run(run.id, stepId);
+    }
+    const owner = database
+      .prepare('SELECT step_id FROM cafe_starts WHERE id = ?')
+      .get(run.id);
+    const state = owner?.step_id === stepId ? readView(run.id) : null;
+    database.exec('COMMIT');
+    return state;
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function readView(id: string) {
@@ -46,7 +76,11 @@ export function readJournal(id: string) {
 export async function pay(request: PaymentRequest) {
   ledger ??= paymentProvider(path);
   const receipt = await ledger.pay(request);
-  if (request.kind === 'charge' && process.env.CAFE_CRASH_AFTER_CHARGE === '1')
+  if (
+    'receiptId' in receipt &&
+    request.kind === 'charge' &&
+    process.env.CAFE_CRASH_AFTER_CHARGE === '1'
+  )
     await new Promise(() => {});
   return receipt;
 }

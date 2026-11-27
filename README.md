@@ -46,4 +46,4 @@ pnpm test:scenarios
 pnpm test
 ```
 
-The shared suite runs the same three scenarios against each local runtime. It checks grinder contention, one refund after cancellation, and recovery after a worker dies following a committed charge. `pnpm test` also runs the original Rivet and SQLite regression suites. To select one runtime, run `CAFE_RUNTIME=cloudflare pnpm test:scenarios`. Use `TEMPORAL_CLI` or `RESTATE_SERVER` to override either server executable.
+The shared suite runs the same three scenarios against each local runtime. It checks grinder contention, one refund after cancellation, and recovery after a worker dies following a committed charge. The suite also covers lost payment responses, command and timer ordering, malformed Restate requests, and duplicate workflow starts. `pnpm test` also runs the original Rivet and SQLite regression suites. To select one runtime, run `CAFE_RUNTIME=cloudflare pnpm test:scenarios`. Use `TEMPORAL_CLI` or `RESTATE_SERVER` to override either server executable.

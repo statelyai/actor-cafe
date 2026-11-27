@@ -197,3 +197,81 @@ for (const runtime of runtimes) {
     },
   );
 }
+
+if (runtimes.includes('restate')) {
+  test(
+    'restate: invalid ingress requests return 400 and leave the café responsive',
+    { timeout },
+    async (context) => {
+      const { backend, ingress } = await nativeFixture(
+        context,
+        'restate',
+        false,
+      );
+      assert.ok(ingress);
+      const id = randomUUID();
+      const endpoint = new URL(`/Cafe/${id}/`, ingress);
+      async function invalid(handler: string, body: unknown) {
+        const response = await fetch(new URL(handler, endpoint), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(3_000),
+        });
+        await response.text();
+        assert.equal(
+          response.status,
+          400,
+          `Invalid ${handler} should be terminal`,
+        );
+      }
+      await invalid('start', { customers: 'unlimited' });
+      await backend.start(id, {
+        customers: 0,
+        baristas: 1,
+        tickMs: 80,
+        inspect: false,
+      });
+      await invalid('command', {
+        requestId: 'bad',
+        command: { type: 'refill' },
+      });
+      await send(backend, id, { type: 'close' });
+      assert.equal((await backend.snapshot(id)).status, 'closed');
+    },
+  );
+}
+
+for (const runtime of ['temporal', 'workflow'] as const) {
+  if (!runtimes.includes(runtime)) continue;
+  test(
+    `${runtime}: concurrent and repeated starts preserve the café ID after close`,
+    { timeout },
+    async (context) => {
+      const { backend } = await nativeFixture(context, runtime, false);
+      const id = randomUUID();
+      const config = { customers: 0, baristas: 1, tickMs: 80, inspect: false };
+      await Promise.all([backend.start(id, config), backend.start(id, config)]);
+      await send(backend, id, { type: 'arrival', drink: 'latte' });
+      await until(
+        backend,
+        id,
+        'the original order served',
+        (view) => view.orders[0]?.status === 'served',
+      );
+      await send(backend, id, { type: 'close' });
+      const closed = await until(
+        backend,
+        id,
+        'the original café closed',
+        (view) => view.status === 'closed',
+      );
+      await backend.start(id, { ...config, customers: 1 });
+      // A bad second start can return the old snapshot while its new run initializes.
+      for (let observation = 0; observation < 20; observation++) {
+        assert.deepEqual(await backend.snapshot(id), closed);
+        await delay(100);
+      }
+    },
+  );
+}

@@ -5,6 +5,7 @@ import {
   advanceCafe,
   startCafe,
   type CafeRun,
+  type PaymentOutcome,
   type PaymentRequest,
 } from '@actor-cafe/cafe/turn';
 
@@ -15,24 +16,28 @@ interface Env {
 }
 
 export class Payments extends DurableObject<Env> {
-  async pay({ orderId, kind, amount }: PaymentRequest) {
-    await this.ctx.storage.transaction(async (tx) => {
+  async pay({
+    orderId,
+    kind,
+    amount,
+  }: PaymentRequest): Promise<PaymentOutcome> {
+    return this.ctx.storage.transaction(async (tx) => {
       const key = `${orderId}:${kind}`;
       const existing = await tx.get<number>(key);
       if (existing !== undefined && existing !== amount)
-        throw new Error('Conflicting payment amount');
+        return { declined: 'Conflicting payment amount' };
       if (
         kind === 'refund' &&
         (await tx.get<number>(`${orderId}:charge`)) !== amount
       )
-        throw new Error('Refund requires a matching charge');
+        return { declined: 'Refund requires a matching charge' };
       if (existing === undefined) {
         await tx.put(key, amount);
         if (kind === 'charge' && this.env.CAFE_FAULT === '1')
           await tx.put('last-charge', orderId);
       }
+      return { receiptId: `${kind}:${orderId}` };
     });
-    return { receiptId: `${kind}:${orderId}` };
   }
 
   async fixtureCharge() {
@@ -55,7 +60,11 @@ export class Cafe extends DurableObject<Env> {
     const receipt = await this.env.PAYMENTS.getByName(request.cafeId).pay(
       request,
     );
-    if (request.kind === 'charge' && this.env.CAFE_FAULT === '1')
+    if (
+      'receiptId' in receipt &&
+      request.kind === 'charge' &&
+      this.env.CAFE_FAULT === '1'
+    )
       await new Promise(() => {});
     return receipt;
   };

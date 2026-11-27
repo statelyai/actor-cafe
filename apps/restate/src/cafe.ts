@@ -1,4 +1,5 @@
 import * as restate from '@restatedev/restate-sdk';
+import type { ZodType } from 'zod';
 import { runConfigSchema } from '@actor-cafe/contract';
 import { messageSchema } from '@actor-cafe/cafe/http';
 import {
@@ -8,6 +9,13 @@ import {
   type Pay,
 } from '@actor-cafe/cafe/turn';
 import type { createInspection } from '@actor-cafe/cafe/inspection';
+
+function parseRequest<T>(schema: ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success)
+    throw new restate.TerminalError(parsed.error.message, { errorCode: 400 });
+  return parsed.data;
+}
 
 export function createCafeService(
   pay: Pay,
@@ -41,8 +49,8 @@ export function createCafeService(
     name: 'Cafe',
     handlers: {
       async start(ctx: restate.ObjectContext, input: unknown) {
+        const config = parseRequest(runConfigSchema, input);
         if (await ctx.get<CafeRun>('xstate')) return;
-        const config = runConfigSchema.parse(input);
         const now = await ctx.date.now();
         schedule(
           ctx,
@@ -53,8 +61,8 @@ export function createCafeService(
         );
       },
       async command(ctx: restate.ObjectContext, input: unknown) {
+        const message = parseRequest(messageSchema, input);
         const state = await read(ctx);
-        const message = messageSchema.parse(input);
         if (Object.hasOwn(state.accepted, message.requestId)) return;
         const now = await ctx.date.now();
         schedule(

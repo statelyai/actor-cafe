@@ -13,7 +13,10 @@ import { projectCafe } from './projection.ts';
 
 export type Payment = CafeSnapshot['payments'][number];
 export type PaymentRequest = Payment & { cafeId: string; amount: number };
-export type Pay = (request: PaymentRequest) => Promise<{ receiptId: string }>;
+export type PaymentOutcome = { receiptId: string } | { declined: string };
+export type Pay = (request: PaymentRequest) => Promise<PaymentOutcome>;
+
+class PaymentDeclined extends Error {}
 
 export type CafeMessage = {
   requestId: string;
@@ -41,6 +44,7 @@ function execution(state: CafeRun, lookupPay: () => Pay | undefined) {
       if (!pay)
         throw new Error('Historical execution cannot charge or refund.');
       const receipt = await pay({ cafeId: state.id, kind, ...request });
+      if ('declined' in receipt) throw new PaymentDeclined(receipt.declined);
       state.receipts.push({ orderId: request.orderId, kind });
       return receipt;
     };
@@ -53,6 +57,7 @@ function execution(state: CafeRun, lookupPay: () => Pay | undefined) {
       charge: operation('charge'),
       refund: operation('refund'),
     }),
+    retryError: (error) => !(error instanceof PaymentDeclined),
     journal: async (key, run) => {
       if (Object.hasOwn(state.results, key)) return state.results[key];
       if (!lookupPay())
@@ -124,16 +129,18 @@ export async function advanceCafe(
   for (const delivery of state.deliveries) await run.deliver(delivery);
   live = true;
   const timer = run.nextTimer;
+  const timerAt = timer && Math.max(run.now, timer.at);
   const next = state.inbox[0];
   const acceptedAt = next && Math.max(run.now, next.acceptedAt);
   let delivery: Delivery | undefined;
   if (
     timer &&
-    timer.at <= now &&
-    (acceptedAt === undefined || timer.at <= acceptedAt)
+    timerAt !== undefined &&
+    timerAt <= now &&
+    (acceptedAt === undefined || timerAt <= acceptedAt)
   ) {
-    delivery = timer;
-  } else if (next && acceptedAt !== undefined) {
+    delivery = { ...timer, at: timerAt };
+  } else if (next && acceptedAt !== undefined && acceptedAt <= now) {
     delivery = {
       address: run.execution.rootAddress,
       at: acceptedAt,
@@ -147,11 +154,13 @@ export async function advanceCafe(
     state.deliveries.push(delivery);
   }
   state.snapshot = projectCafe(run.view(), state.receipts);
+  const nextAt = Math.min(
+    run.nextTimer?.at ?? Infinity,
+    state.inbox[0]?.acceptedAt ?? Infinity,
+  );
   state.nextAt =
-    state.snapshot.status === 'closed'
+    state.snapshot.status === 'closed' || nextAt === Infinity
       ? null
-      : state.inbox.length
-        ? now
-        : (run.nextTimer?.at ?? null);
+      : Math.max(run.now, nextAt);
   return state;
 }

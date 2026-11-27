@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test --test-concurrency=1 src/scenarios.test.ts",
+    "test": "tsx --experimental-vm-modules --test --test-concurrency=1 src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
