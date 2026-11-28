@@ -1,0 +1,29 @@
+{
+  "name": "actor-cafe",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.17.0"
+  },
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "dev:all": "tsx scripts/dev.ts --all",
+    "gateway": "tsx scripts/gateway.ts",
+    "cafe": "pnpm --filter @actor-cafe/rivet start",
+    "cafe:rivet": "pnpm --filter @actor-cafe/rivet rivet",
+    "test": "pnpm --filter @actor-cafe/rivet test && pnpm --filter @actor-cafe/scenarios test",
+    "test:scenarios": "pnpm --filter @actor-cafe/scenarios test",
+    "typecheck": "tsc --noEmit && pnpm -r --if-present typecheck",
+    "build": "pnpm --filter @actor-cafe/web build"
+  },
+  "dependencies": {
+    "@actor-cafe/cafe": "workspace:*",
+    "@actor-cafe/contract": "workspace:*",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}

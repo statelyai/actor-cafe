@@ -1,0 +1,17 @@
+{
+  "name": "@actor-cafe/cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --ip 127.0.0.1 --port 8787",
+    "typecheck": "mkdir -p .wrangler && wrangler types .wrangler/worker-configuration.d.ts && tsc --noEmit"
+  },
+  "dependencies": {
+    "@actor-cafe/cafe": "workspace:*",
+    "@actor-cafe/contract": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "4.50.0",
+    "typescript": "5.9.3"
+  }
+}

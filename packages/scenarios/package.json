@@ -1,0 +1,19 @@
+{
+  "name": "@actor-cafe/scenarios",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --experimental-vm-modules --test --test-concurrency=1 src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@actor-cafe/contract": "workspace:*",
+    "zod": "4.3.6",
+    "@actor-cafe/cafe": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  }
+}
