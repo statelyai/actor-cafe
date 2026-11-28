@@ -1,4 +1,4 @@
-import { createServer } from 'node:http2';
+import { createServer, type ServerHttp2Session } from 'node:http2';
 import * as restate from '@restatedev/restate-sdk';
 import { z } from 'zod';
 import { createCafeService } from './cafe.ts';
@@ -32,6 +32,14 @@ const server = createServer(
   }),
 );
 
+const sessions = new Set<ServerHttp2Session>();
+let stopping = false;
+server.on('session', (session) => {
+  sessions.add(session);
+  session.once('close', () => sessions.delete(session));
+  if (stopping) session.close();
+});
+
 server.listen(port, '127.0.0.1', () => {
   process.stdout.write(
     `Restate café service listening at http://127.0.0.1:${port}\n`,
@@ -39,8 +47,17 @@ server.listen(port, '127.0.0.1', () => {
   process.send?.({ type: 'ready' });
 });
 function shutdown() {
-  inspection.destroy();
-  server.close(() => provider.close());
+  if (stopping) return;
+  stopping = true;
+  const deadline = setTimeout(() => {
+    for (const session of sessions) session.destroy();
+  }, 2000).unref();
+  server.close(() => {
+    clearTimeout(deadline);
+    inspection.destroy();
+    provider.close();
+  });
+  for (const session of sessions) session.close();
 }
 process.once('SIGTERM', shutdown);
 process.once('SIGINT', shutdown);

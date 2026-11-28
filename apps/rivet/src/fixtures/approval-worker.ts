@@ -186,6 +186,12 @@ export function createApprovalRegistry(
   const composedLogic = approvalMachine(async () => true);
   const composedHandler = xstate(composedLogic, {
     queue: 'events',
+    ...(mode === 'empty-ids' && {
+      mapEvent: (event: EventFromLogic<typeof composedLogic>) => ({
+        event,
+        id: event.type === 'note' ? '' : undefined,
+      }),
+    }),
     input: (c: { state: ComposedState }) => c.state,
     onSnapshot: (c, view, delivery) => {
       c.state.view = view;

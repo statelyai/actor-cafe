@@ -5,7 +5,7 @@ export function selectDelivery(
   pending: Delivery | undefined,
   now: number,
 ): 'timer' | 'message' | 'none' {
-  if (timer && timer.at <= now && (!pending || timer.at <= pending.at))
-    return 'timer';
-  return pending ? 'message' : 'none';
+  // The native queue timestamp establishes how far time has advanced.
+  if (pending) return timer && timer.at <= pending.at ? 'timer' : 'message';
+  return timer && timer.at <= now ? 'timer' : 'none';
 }

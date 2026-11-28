@@ -161,6 +161,8 @@ async function stopEngine(pid: number) {
 interface Fixture {
   backend: CafeBackend;
   ingress?: string;
+  endpoint?: string;
+  shutdown?: () => Promise<void>;
   crashAndRestart(runId: string): Promise<string>;
 }
 
@@ -277,6 +279,16 @@ advertised-ingress-endpoint = "${ingress}/"
   return {
     backend: createRestateBackend(ingress),
     ingress,
+    endpoint: url(servicePort),
+    async shutdown() {
+      const exited = once(worker.child, 'exit', {
+        signal: AbortSignal.timeout(4500),
+      });
+      worker.child.kill('SIGTERM');
+      const [code] = await exited;
+      if (code !== 0)
+        throw new Error(`Restate worker exited with ${code}\n${worker.log()}`);
+    },
     async crashAndRestart(runId) {
       const fault = await worker.wait('fault.payment');
       const { orderId } = z
@@ -466,6 +478,7 @@ async function extraFixture(
   const worker = await startWorker(chargeFault);
   return {
     backend,
+    endpoint,
     async crashAndRestart(runId) {
       const orderId = await waitUntil(
         worker,

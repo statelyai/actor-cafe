@@ -192,7 +192,7 @@ with `close`; do not treat this as an indefinitely running production service. A
 serially between input deliveries. This adapter does not implement arbitrary overlapping async work or machine migrations.
 Use a new café key when changing model semantics. The handler rejects incompatible protocol versions and histories from the old whole-actor factory. Existing Rivet demos require new keys or fresh storage. Local saved histories are unchanged.
 
-Cloudflare, Restate, and Temporal adapters remain follow-up work.
+The [runtime comparison](../../README.md#what-each-runtime-owns) also covers Restate, Cloudflare Durable Objects, Temporal, and Vercel Workflow.
 
 ## Verify
 

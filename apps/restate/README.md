@@ -24,3 +24,5 @@ curl http://127.0.0.1:9070/deployments --json '{"uri":"http://127.0.0.1:9080"}'
 ```
 
 To point the shared gateway at this server, set `RESTATE_CAFE_INGRESS=http://127.0.0.1:8080` when running `pnpm gateway`. The service listens on loopback. Use `RESTATE_SERVICE_PORT` to change its port, and `RESTATE_PAYMENT_DB` to set the simulated payment ledger path. The default ledger path is `.cafe/restate-payments.sqlite` relative to the service working directory.
+
+On shutdown, the service gives active HTTP/2 streams up to two seconds to finish. It closes any remaining sessions before releasing the payment database.

@@ -105,7 +105,7 @@ This order also removes retained messages when a replayed workflow has no live c
 until completion, as implemented in its [pinned native queue source](https://github.com/rivet-dev/rivet/blob/f6926c3103809c0119f06c85f0c38ccc4671073c/rivetkit-rust/packages/rivetkit-core/src/actor/queue.rs#L615-L650).
 A native fault test kills the runner after receive and before workflow history records the event.
 Expired workflow waits check the native queue before choosing a due timer. Timer selection is journaled.
-Native queue timestamps order events against timers. Timers win equal timestamps.
+Native queue timestamps order events against timers, including when the runner clock is behind the queue clock. Timers win equal timestamps.
 Events queued before initialization use the execution's current logical time to prevent clock reversal.
 
 The default embedded SQLite provider works. A caller's `db({ onMigrate })` can own additional tables.

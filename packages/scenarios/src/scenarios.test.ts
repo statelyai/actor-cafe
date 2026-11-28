@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
+import { request } from 'node:http';
+import { connect } from 'node:http2';
 import { test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
@@ -272,6 +275,82 @@ for (const runtime of ['temporal', 'workflow'] as const) {
         assert.deepEqual(await backend.snapshot(id), closed);
         await delay(100);
       }
+    },
+  );
+}
+
+if (runtimes.includes('restate')) {
+  test(
+    'restate: SIGTERM bounds shutdown with an active HTTP/2 stream',
+    { timeout },
+    async (context) => {
+      const { endpoint, shutdown } = await nativeFixture(
+        context,
+        'restate',
+        false,
+      );
+      assert.ok(endpoint && shutdown);
+      const session = connect(endpoint);
+      try {
+        const stream = session.request(
+          {
+            ':method': 'POST',
+            ':path': '/invoke/Cafe/start',
+            'content-type': 'application/vnd.restate.invocation.v5',
+          },
+          { endStream: false },
+        );
+        const [headers] = await once(stream, 'response', {
+          signal: AbortSignal.timeout(3000),
+        });
+        assert.equal(headers[':status'], 200);
+        assert.equal(stream.closed, false);
+        await shutdown();
+      } finally {
+        session.destroy();
+      }
+    },
+  );
+}
+
+if (runtimes.includes('temporal')) {
+  test(
+    'temporal: a body on GET returns 400 and leaves the worker responsive',
+    { timeout },
+    async (context) => {
+      const { backend, endpoint } = await nativeFixture(
+        context,
+        'temporal',
+        false,
+      );
+      assert.ok(endpoint);
+      const id = randomUUID();
+      await backend.start(id, {
+        customers: 0,
+        baristas: 1,
+        tickMs: 80,
+        inspect: false,
+      });
+      const status = await new Promise<number | undefined>(
+        (resolve, reject) => {
+          const req = request(
+            new URL(`/api/runs/${id}/snapshot`, endpoint),
+            {
+              method: 'GET',
+              headers: { 'content-length': '1' },
+              signal: AbortSignal.timeout(3000),
+            },
+            (response) => {
+              response.resume();
+              resolve(response.statusCode);
+            },
+          );
+          req.on('error', reject);
+          req.end('x');
+        },
+      );
+      assert.equal(status, 400);
+      assert.equal((await backend.snapshot(id)).status, 'open');
     },
   );
 }

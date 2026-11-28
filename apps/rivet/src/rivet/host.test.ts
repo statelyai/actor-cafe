@@ -679,3 +679,40 @@ test('plain native events are not redelivered after a publication crash', async 
     await client.dispose();
   }
 }, 90_000);
+
+test('a mapped empty string is a durable command ID', async () => {
+  const resource = {
+    storage: mkdtempSync(join(tmpdir(), 'durable-empty-id-')),
+    workers: [] as ChildProcess[],
+    enginePid: null as number | null,
+  };
+  resources.push(resource);
+  const port = await freePort();
+  await start(resource, port, 'empty-ids');
+  const client = createClient<ReturnType<typeof createApprovalRegistry>>(
+    `http://127.0.0.1:${port}`,
+  );
+  const composed = client.composed.getOrCreate(['empty-id'], {
+    createWithInput: { document: 'one-note.pdf', expiresIn: 60_000 },
+  });
+  try {
+    await eventually(
+      () => composed.snapshot(),
+      (view) =>
+        view?.actors.some((actor) => actor.value === 'waiting') ?? false,
+    );
+    await composed.submit({ type: 'note', text: 'Keep this' });
+    await composed.submit({ type: 'note', text: 'Skip this' });
+    await composed.submit({ type: 'approve', reviewer: 'reviewer-1' });
+    const finished = await eventually(
+      () => composed.snapshot(),
+      (view) => view?.status === 'done',
+    );
+    expect(
+      finished?.actors.find((actor) => actor.id === 'document-approval')
+        ?.context,
+    ).toMatchObject({ notes: 1, lastNote: 'Keep this' });
+  } finally {
+    await client.dispose();
+  }
+}, 40_000);

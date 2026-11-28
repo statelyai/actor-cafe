@@ -71,17 +71,33 @@ const backend: Parameters<typeof cafeHttp>[1] = {
 };
 
 const server = createServer(async (incoming, outgoing) => {
-  const chunks = [];
-  for await (const chunk of incoming) chunks.push(chunk);
-  const body = Buffer.concat(chunks);
-  const request = new Request(`http://127.0.0.1${incoming.url ?? '/'}`, {
-    method: incoming.method,
-    headers: new Headers(incoming.headers as Record<string, string>),
-    body: body.length ? new Uint8Array(body) : undefined,
-  });
-  const response = await cafeHttp(request, backend);
-  outgoing.writeHead(response.status, Object.fromEntries(response.headers));
-  outgoing.end(await response.text());
+  try {
+    const chunks = [];
+    for await (const chunk of incoming) chunks.push(chunk);
+    const body = Buffer.concat(chunks);
+    const request = new Request(`http://127.0.0.1${incoming.url ?? '/'}`, {
+      method: incoming.method,
+      headers: new Headers(incoming.headers as Record<string, string>),
+      body: body.length ? new Uint8Array(body) : undefined,
+    });
+    const response = await cafeHttp(request, backend);
+    outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+    outgoing.end(await response.text());
+  } catch (error) {
+    if (outgoing.destroyed || outgoing.writableEnded) return;
+    if (outgoing.headersSent) {
+      outgoing.destroy();
+      return;
+    }
+    const invalid = error instanceof TypeError;
+    if (!invalid) console.error('Temporal café request failed', error);
+    outgoing.writeHead(invalid ? 400 : 500, {
+      'content-type': 'text/plain; charset=utf-8',
+    });
+    outgoing.end(
+      invalid ? 'Invalid HTTP request.' : 'Could not process the request.',
+    );
+  }
 });
 server.listen(Number(process.env.CAFE_HTTP_PORT ?? 4301), '127.0.0.1', () => {
   console.log('Temporal café API is ready');

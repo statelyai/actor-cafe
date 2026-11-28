@@ -80,11 +80,22 @@ async function main() {
         shownInspector = true;
         process.stdout.write(`Inspector ${view.inspectorUrl}\n`);
         if (values.open) {
-          const { spawn } = await import('node:child_process');
-          if (process.platform === 'darwin')
-            spawn('open', [view.inspectorUrl], { stdio: 'ignore' }).unref();
-          else if (process.platform === 'linux')
-            spawn('xdg-open', [view.inspectorUrl], { stdio: 'ignore' }).unref();
+          const opener =
+            process.platform === 'darwin'
+              ? 'open'
+              : process.platform === 'linux'
+                ? 'xdg-open'
+                : undefined;
+          if (opener) {
+            const { spawn } = await import('node:child_process');
+            spawn(opener, [view.inspectorUrl], { stdio: 'ignore' })
+              .once('error', (error) => {
+                process.stderr.write(
+                  `Could not open the inspector: ${error.message}\n`,
+                );
+              })
+              .unref();
+          }
         }
       }
       const root = view.actors.find((entry) => entry.id === 'cafe');

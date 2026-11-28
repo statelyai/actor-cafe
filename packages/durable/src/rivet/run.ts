@@ -287,14 +287,17 @@ export function xstate<
           if (!delivery) continue;
           const consumed = selection === 'message';
           if (consumed) pending = undefined;
-          if (delivery.commandId && delivered.has(delivery.commandId)) {
+          if (
+            delivery.commandId !== null &&
+            delivered.has(delivery.commandId)
+          ) {
             await complete?.();
             complete = undefined;
             continue;
           }
           options.onDelivery?.(delivery);
           await execution.deliver(delivery);
-          if (delivery.commandId) delivered.add(delivery.commandId);
+          if (delivery.commandId !== null) delivered.add(delivery.commandId);
           await publish(`xstate:publish:${turn}`, delivery);
           if (consumed) {
             await complete?.();
